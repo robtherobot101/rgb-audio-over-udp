@@ -1,3 +1,5 @@
+#!/opt/venv/audio-led/bin/python
+
 from __future__ import print_function
 from __future__ import division
 import time
@@ -6,7 +8,7 @@ from scipy.ndimage.filters import gaussian_filter1d
 import config
 import microphone
 import dsp
-import led
+import net
 
 _time_prev = time.time() * 1000.0
 """The previous time that the frames_per_second() function was called"""
@@ -190,6 +192,7 @@ prev_fps_update = time.time()
 
 def microphone_update(audio_samples):
     global y_roll, prev_rms, prev_exp, prev_fps_update
+    audio_samples = audio_samples[::2]
     # Normalize samples between 0 and 1
     y = audio_samples / 2.0**15
     # Construct a rolling window of audio samples
@@ -199,9 +202,9 @@ def microphone_update(audio_samples):
     
     vol = np.max(np.abs(y_data))
     if vol < config.MIN_VOLUME_THRESHOLD:
-        print('No audio input. Volume below threshold. Volume:', vol)
-        led.pixels = np.tile(0, (3, config.N_PIXELS))
-        led.update()
+        # print('No audio input. Volume below threshold. Volume:', vol)
+        net.pixels = np.tile(0, (3, config.N_PIXELS))
+        net.update()
     else:
         # Transform audio input into the frequency domain
         N = len(y_data)
@@ -222,16 +225,16 @@ def microphone_update(audio_samples):
         mel = mel_smoothing.update(mel)
         # Map filterbank output onto LED strip
         output = visualization_effect(mel)
-        led.pixels = output
-        led.update()
+        net.pixels = output
+        net.update()
         if config.USE_GUI:
             # Plot filterbank output
             x = np.linspace(config.MIN_FREQUENCY, config.MAX_FREQUENCY, len(mel))
             mel_curve.setData(x=x, y=fft_plot_filter.update(mel))
             # Plot the color channels
-            r_curve.setData(y=led.pixels[0])
-            g_curve.setData(y=led.pixels[1])
-            b_curve.setData(y=led.pixels[2])
+            r_curve.setData(y=net.pixels[0])
+            g_curve.setData(y=net.pixels[1])
+            b_curve.setData(y=net.pixels[2])
     if config.USE_GUI:
         app.processEvents()
     
@@ -248,7 +251,9 @@ samples_per_frame = int(config.MIC_RATE / config.FPS)
 # Array containing the rolling audio sample window
 y_roll = np.random.rand(config.N_ROLLING_HISTORY, samples_per_frame) / 1e16
 
-visualization_effect = visualize_spectrum
+visualization_effect = visualize_energy
+#visualization_effect = visualize_spectrum
+#visualization_effect = visualize_scroll
 """Visualization effect to display on the LED strip"""
 
 
@@ -351,6 +356,6 @@ if __name__ == '__main__':
         layout.addItem(scroll_label)
         layout.addItem(spectrum_label)
     # Initialize LEDs
-    led.update()
+    net.update()
     # Start listening to live audio stream
     microphone.start_stream(microphone_update)
